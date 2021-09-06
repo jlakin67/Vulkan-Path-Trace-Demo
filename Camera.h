@@ -6,8 +6,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-constexpr float SENSITIVITY = 0.01f;
-constexpr float SPEED = 0.01f;
+constexpr float SENSITIVITY = 0.001f;
+constexpr float SPEED = 0.001f;
 constexpr float ZOOM = 45.0f;
 
 class Camera {
