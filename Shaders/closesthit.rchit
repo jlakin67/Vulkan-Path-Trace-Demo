@@ -18,7 +18,7 @@ layout(binding = 4, set = 0) buffer VertexBuffer { float data[]; } vertexBuffer;
 layout(binding = 5, set = 0) buffer EmissionBuffer { float data[]; } emissionBuffer;
 layout(binding = 6, set = 0) buffer ColorBuffer { float data[]; } colorBuffer;
 
-layout(location = 0) rayPayloadEXT Payload {
+layout(location = 0) rayPayloadInEXT Payload {
 	vec3 prevPos;
 	vec3 prevNormal;
 	vec3 directColor;
@@ -28,6 +28,7 @@ layout(location = 0) rayPayloadEXT Payload {
 	bool directPass;
 	bool indirectPass;
 	bool terminateRay;
+	vec3 lastLightPos;
 } payload;
 
 //https://www.shadertoy.com/view/Xt23Ry
@@ -72,9 +73,13 @@ void main() {
 	vec3 lightColor = vec3(emissionBuffer.data[3 * gl_PrimitiveID + 0], emissionBuffer.data[3 * gl_PrimitiveID + 1], emissionBuffer.data[3 * gl_PrimitiveID + 2]);
 	vec3 surfaceColor = vec3(colorBuffer.data[3 * gl_PrimitiveID + 0], colorBuffer.data[3 * gl_PrimitiveID + 1], colorBuffer.data[3 * gl_PrimitiveID + 2]);
 	vec3 dir = position - payload.prevPos;
+	payload.directColor = surfaceColor;
+	return;
 	float dist = min(1.0f / length(dir), 2.f);
 	float diff = dist*dist*max(dot(normalize(dir), payload.prevNormal), 0.0f);
-	if (payload.directPass) payload.directColor += (1.0f/NUM_SAMPLES)*diff*lightColor*surfaceColor;
+	if (payload.directPass) {
+		payload.directColor += (1.0f/NUM_SAMPLES)*diff*lightColor*surfaceColor;
+	}
 	if (payload.indirectPass) {
 		payload.indirectColor = (1.0f/NUM_SAMPLES)*diff*lightColor*surfaceColor;
 		return;

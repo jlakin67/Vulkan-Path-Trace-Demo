@@ -7,7 +7,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 constexpr float SENSITIVITY = 0.01f;
-constexpr float SPEED = 8.0f;
+constexpr float SPEED = 0.01f;
 constexpr float ZOOM = 45.0f;
 
 class Camera {

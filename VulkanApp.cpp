@@ -2,6 +2,26 @@
 #include "VulkanApp.h"
 
 double currentTime = 0.0f, lastTime = 0.0f, deltaTime = 0.0f;
+bool firstMove = true, mousePressed = false;
+double lastX = 0, lastY = 0, deltaX = 0, deltaY = 0;
+Camera camera;
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (firstMove) {
+        lastX = xpos;
+        lastY = ypos;
+        firstMove = false;
+    }
+    else {
+        deltaX = xpos - lastX;
+        deltaY = ypos - lastY;
+    }
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE) {
+        deltaX = 0;
+        deltaY = 0;
+    }
+    lastX = xpos; lastY = ypos;
+    camera.processMouse(window, deltaX, deltaY);
+}
 
 void processInput(GLFWwindow* window, Camera& camera) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
@@ -756,6 +776,7 @@ void VulkanApp::initWindow() {
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
     window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
 }
 
 void VulkanApp::initVulkan(){

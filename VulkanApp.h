@@ -84,7 +84,6 @@ private:
 	//VkSampler sampler;
 	VkDescriptorSetLayout setLayout;
 	VkBuffer uniformBuffer; VkDeviceMemory uniformBufferMemory;
-	Camera camera;
 	SceneProperties scene;
 	VkDescriptorPool descriptorPool; VkDescriptorSet descriptorSet;
 	VkPipelineLayout pipelineLayout; VkPipeline pipeline;

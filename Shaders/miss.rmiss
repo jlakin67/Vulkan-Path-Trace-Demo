@@ -2,7 +2,7 @@
 #extension GL_EXT_ray_tracing : require
 
 
-layout(location = 0) rayPayloadEXT Payload {
+layout(location = 0) rayPayloadInEXT Payload {
 	vec3 prevPos;
 	vec3 prevNormal;
 	vec3 directColor;
@@ -12,6 +12,7 @@ layout(location = 0) rayPayloadEXT Payload {
 	bool directPass;
 	bool indirectPass;
 	bool terminateRay;
+	vec3 lastLightPos;
 } payload;
 
 void main() {
