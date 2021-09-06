@@ -41,7 +41,7 @@ void main() {
 	payload.indirectPass = false;
 	payload.terminateRay = false;
 	traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
-	vec3 FinalColor = vec3(0.0f);
-	FinalColor = payload.directColor;
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(FinalColor, 1.0));
+	//vec3 FinalColor = vec3(0.0f);
+	//FinalColor = payload.directColor;
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(payload.directColor, 1.0f));
 }

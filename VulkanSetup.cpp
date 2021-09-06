@@ -393,6 +393,6 @@ void VulkanSetup::createSwapchainImageViews(std::vector<VkImageView>& swapchainI
 
     for (uint32_t i = 0; i < swapchainImages.size(); i++) {
         swapchainImageViews[i] = createImageView(logicalDevice, swapchainImages[i], swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-        transitionImageLayout(logicalDevice, graphicsQueue, commandPool, swapchainImages[i], VK_FORMAT_B8G8R8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1);
+        //transitionImageLayout(logicalDevice, graphicsQueue, commandPool, swapchainImages[i], VK_FORMAT_B8G8R8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1);
     }
 }

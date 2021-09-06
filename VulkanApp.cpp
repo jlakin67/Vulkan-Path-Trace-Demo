@@ -316,8 +316,8 @@ void VulkanApp::createImageStorage() {
     createImage(physicalDevice, logicalDevice, swapchainExtent.width, swapchainExtent.height,
         1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, storageImage, storageImageMemory);
-    transitionImageLayout(logicalDevice, graphicsQueue, commandPool, storageImage, VK_FORMAT_R8G8B8A8_UNORM,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
+    //transitionImageLayout(logicalDevice, graphicsQueue, commandPool, storageImage, VK_FORMAT_R8G8B8A8_UNORM,
+     //   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
     storageImageView = createImageView(logicalDevice, storageImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
     //VkSamplerCreateInfo samplerInfo{};
     //samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -568,67 +568,96 @@ void VulkanApp::createRaytracingPipeline() {
         pData += groupSizeAligned;
     }
     vkUnmapMemory(logicalDevice, shaderBindingTableMemory);
-    
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    allocInfo.commandBufferCount = 1;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate command buffer!");
-    }
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to begin recording command buffer!");
-    }
-    vkCmdBindPipeline(commandBuffer,
-        VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-        pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-        pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-    VkBufferDeviceAddressInfo addressInfo{};
-    addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    addressInfo.buffer = shaderBindingTable;
-    VkDeviceAddress shaderBindingTableAddress = vkGetBufferDeviceAddress(logicalDevice, &addressInfo);
-    VkStridedDeviceAddressRegionKHR raygenShaderBindingTable{};
-    raygenShaderBindingTable.deviceAddress = shaderBindingTableAddress;
-    raygenShaderBindingTable.stride = groupSizeAligned;
-    raygenShaderBindingTable.size = groupSizeAligned;
-    VkStridedDeviceAddressRegionKHR missShaderBindingTable{};
-    missShaderBindingTable.deviceAddress = shaderBindingTableAddress + groupSizeAligned;
-    missShaderBindingTable.stride = groupSizeAligned;
-    missShaderBindingTable.size = groupSizeAligned;
-    VkStridedDeviceAddressRegionKHR hitShaderShaderBindingTable{};
-    hitShaderShaderBindingTable.deviceAddress = shaderBindingTableAddress + 2u*groupSizeAligned;
-    hitShaderShaderBindingTable.stride = groupSizeAligned;
-    hitShaderShaderBindingTable.size = groupSizeAligned;
-    VkStridedDeviceAddressRegionKHR callableShaderBindingTable{};
-    vkCmdTraceRaysKHR(commandBuffer,
-        &raygenShaderBindingTable,
-        &missShaderBindingTable,
-        &hitShaderShaderBindingTable,
-        &callableShaderBindingTable,
-        swapchainExtent.width,
-        swapchainExtent.height,
-        1
-    );
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to record command buffer!");
-    }
-    blitCommandBuffers.resize(swapchainImages.size());
+
+    commandBuffers.resize(swapchainImages.size());
     for (int i = 0; i < swapchainImages.size(); i++) {
-        if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &blitCommandBuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to allocate blit command buffers!");
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = commandPool;
+        allocInfo.commandBufferCount = 1;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate command buffer!");
         }
-        if (vkBeginCommandBuffer(blitCommandBuffers[i], &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to begin recording blit command buffers!");
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to begin recording command buffer!");
         }
+
+        VkImageMemoryBarrier initialRaytraceBarrier{};
+        initialRaytraceBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        initialRaytraceBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        initialRaytraceBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        initialRaytraceBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        initialRaytraceBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        initialRaytraceBarrier.image = storageImage;
+        initialRaytraceBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        initialRaytraceBarrier.subresourceRange.baseMipLevel = 0;
+        initialRaytraceBarrier.subresourceRange.levelCount = 1;
+        initialRaytraceBarrier.subresourceRange.baseArrayLayer = 0;
+        initialRaytraceBarrier.subresourceRange.layerCount = 1;
+        initialRaytraceBarrier.srcAccessMask = 0;
+        initialRaytraceBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(commandBuffers[i], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0,
+            0, nullptr, 0, nullptr, 1, &initialRaytraceBarrier);
+
+        vkCmdBindPipeline(commandBuffers[i],
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            pipeline);
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+        VkBufferDeviceAddressInfo addressInfo{};
+        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addressInfo.buffer = shaderBindingTable;
+        VkDeviceAddress shaderBindingTableAddress = vkGetBufferDeviceAddress(logicalDevice, &addressInfo);
+        VkStridedDeviceAddressRegionKHR raygenShaderBindingTable{};
+        raygenShaderBindingTable.deviceAddress = shaderBindingTableAddress;
+        raygenShaderBindingTable.stride = groupHandleSize;
+        raygenShaderBindingTable.size = groupHandleSize;
+        VkStridedDeviceAddressRegionKHR missShaderBindingTable{};
+        missShaderBindingTable.deviceAddress = shaderBindingTableAddress + groupSizeAligned;
+        missShaderBindingTable.stride = groupHandleSize;
+        missShaderBindingTable.size = groupHandleSize;
+        VkStridedDeviceAddressRegionKHR hitShaderShaderBindingTable{};
+        hitShaderShaderBindingTable.deviceAddress = shaderBindingTableAddress + 2u * groupSizeAligned;
+        hitShaderShaderBindingTable.stride = groupHandleSize;
+        hitShaderShaderBindingTable.size = groupHandleSize;
+        VkStridedDeviceAddressRegionKHR callableShaderBindingTable{};
+        vkCmdTraceRaysKHR(commandBuffers[i],
+            &raygenShaderBindingTable,
+            &missShaderBindingTable,
+            &hitShaderShaderBindingTable,
+            &callableShaderBindingTable,
+            swapchainExtent.width,
+            swapchainExtent.height,
+            1
+        );
+
         VkImageSubresourceLayers subresourceLayers{};
+        subresourceLayers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        subresourceLayers.mipLevel = 0;
+        subresourceLayers.baseArrayLayer = 0;
+        subresourceLayers.layerCount = 1;
+
+        VkImageMemoryBarrier raytraceBarrier{};
+        raytraceBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        raytraceBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        raytraceBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        raytraceBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        raytraceBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        raytraceBarrier.image = storageImage;
+        raytraceBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        raytraceBarrier.subresourceRange.baseMipLevel = 0;
+        raytraceBarrier.subresourceRange.levelCount = 1;
+        raytraceBarrier.subresourceRange.baseArrayLayer = 0;
+        raytraceBarrier.subresourceRange.layerCount = 1;
+        raytraceBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        raytraceBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         VkImageMemoryBarrier initialBarrier{};
         initialBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        initialBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        initialBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         initialBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         initialBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         initialBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -640,12 +669,10 @@ void VulkanApp::createRaytracingPipeline() {
         initialBarrier.subresourceRange.layerCount = 1;
         initialBarrier.srcAccessMask = 0;
         initialBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        vkCmdPipelineBarrier(blitCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-            0, nullptr, 0, nullptr, 1, &initialBarrier);
-        subresourceLayers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        subresourceLayers.mipLevel = 0;
-        subresourceLayers.baseArrayLayer = 0;
-        subresourceLayers.layerCount = 1;
+        VkImageMemoryBarrier initialBarriers[] = { raytraceBarrier, initialBarrier };
+        vkCmdPipelineBarrier(commandBuffers[i], VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+            0, nullptr, 0, nullptr, 2, initialBarriers);
+
         VkImageBlit blitInfo{};
         blitInfo.srcSubresource = subresourceLayers;
         blitInfo.dstSubresource = subresourceLayers;
@@ -653,7 +680,7 @@ void VulkanApp::createRaytracingPipeline() {
         blitInfo.dstOffsets[1] = { static_cast<int32_t>(swapchainExtent.width), static_cast<int32_t>(swapchainExtent.height), 1 };
         blitInfo.srcOffsets[0] = { 0,0,0 };
         blitInfo.srcOffsets[1] = { static_cast<int32_t>(swapchainExtent.width), static_cast<int32_t>(swapchainExtent.height), 1 };
-        vkCmdBlitImage(blitCommandBuffers[i], storageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchainImages[i],
+        vkCmdBlitImage(commandBuffers[i], storageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchainImages[i],
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitInfo, VK_FILTER_LINEAR);
         VkImageMemoryBarrier finalBarrier{};
         finalBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -669,43 +696,57 @@ void VulkanApp::createRaytracingPipeline() {
         finalBarrier.subresourceRange.layerCount = 1;
         finalBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         finalBarrier.dstAccessMask = 0;
-        vkCmdPipelineBarrier(blitCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+        vkCmdPipelineBarrier(commandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
             0, nullptr, 0, nullptr, 1, &finalBarrier);
-        vkEndCommandBuffer(blitCommandBuffers[i]);
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer!");
+        }
     }
+    
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphore);
+    vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &imageRenderedSemaphore);
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    //fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    vkCreateFence(logicalDevice, &fenceInfo, nullptr, &frameInFlight);
 }
 
 void VulkanApp::renderFrame() {
-    
+
     uint32_t swapchainIndex;
-    vkAcquireNextImageKHR(logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &swapchainIndex);
+    if (vkAcquireNextImageKHR(logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &swapchainIndex) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to present swap chain image!");
+    }
+    //vkWaitForFences(logicalDevice, 1, &frameInFlight, VK_TRUE, UINT64_MAX);
+    //vkResetFences(logicalDevice, 1, &frameInFlight);
     
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.pCommandBuffers = &commandBuffers[swapchainIndex];
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
+    submitInfo.pSignalSemaphores = &imageRenderedSemaphore;
+    submitInfo.signalSemaphoreCount = 1;
     VkPipelineStageFlags flags[] = { VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR };
     submitInfo.pWaitDstStageMask = flags;
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
     vkQueueWaitIdle(graphicsQueue);
-    
-    VkSubmitInfo blitSubmitInfo{};
-    blitSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    blitSubmitInfo.commandBufferCount = 1;
-    blitSubmitInfo.pCommandBuffers = &blitCommandBuffers[swapchainIndex];
-    vkQueueWaitIdle(graphicsQueue);
+
+
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     VkSwapchainKHR swapchains[] = { swapchain };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapchains;
     presentInfo.pImageIndices = &swapchainIndex;
-    vkQueuePresentKHR(presentQueue, &presentInfo);
+    presentInfo.pWaitSemaphores = &imageRenderedSemaphore;
+    presentInfo.waitSemaphoreCount = 1;
+    if (vkQueuePresentKHR(presentQueue, &presentInfo) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to present swap chain image!");
+    }
     
 }
 

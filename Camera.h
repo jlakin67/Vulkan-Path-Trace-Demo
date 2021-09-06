@@ -16,9 +16,7 @@ public:
         pos{ pos_ }, pitch{ pitch_ }, yaw{ yaw_ }, sensitivity{ sensitivity_ }, speed{ speed_ }
     {
         
-        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        front.y = sin(glm::radians(pitch));
-        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front = glm::vec3(0.0f, 1.0f, 0.0f);
     }
     void processKeyboard(int key, float deltaTime);
     void processMouse(GLFWwindow* window, double deltaX, double deltaY);

@@ -90,8 +90,9 @@ private:
 	VkPipelineLayout pipelineLayout; VkPipeline pipeline;
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties;
 	VkBuffer shaderBindingTable; VkDeviceMemory shaderBindingTableMemory;
-	VkCommandBuffer commandBuffer; std::vector<VkCommandBuffer> blitCommandBuffers;
-	VkSemaphore imageAvailableSemaphore;
+	std::vector<VkCommandBuffer> commandBuffers;
+	VkSemaphore imageAvailableSemaphore; VkSemaphore imageRenderedSemaphore;
+	VkFence frameInFlight;
 
 	void mainLoop();
 	void initWindow();
