@@ -12,6 +12,7 @@ layout(binding = 2, set = 0) uniform SceneProperties
 layout(location = 0) rayPayloadEXT Payload {
 	vec3 prevPos;
 	vec3 prevNormal;
+	vec3 prevColor;
 	vec3 directColor;
 	float directShadow;
 	vec3 indirectColor;
@@ -37,6 +38,7 @@ void main() {
 	payload.directPass = false;
 	payload.indirectPass = false;
 	payload.terminateRay = false;
+	payload.prevColor = vec3(0.0f, 0.0f, 0.0f);
 	vec3 finalColor = vec3(0.0f);
 	for (int i = 0; i < offsets.length(); i++) {
 		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5) + 0.25*offsets[i];

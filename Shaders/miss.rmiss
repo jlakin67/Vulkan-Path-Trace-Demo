@@ -5,6 +5,7 @@
 layout(location = 0) rayPayloadInEXT Payload {
 	vec3 prevPos;
 	vec3 prevNormal;
+	vec3 prevColor;
 	vec3 directColor;
 	float directShadow;
 	vec3 indirectColor;

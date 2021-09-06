@@ -21,6 +21,7 @@ layout(binding = 6, set = 0) buffer ColorBuffer { float data[]; } colorBuffer;
 layout(location = 0) rayPayloadInEXT Payload {
 	vec3 prevPos;
 	vec3 prevNormal;
+	vec3 prevColor;
 	vec3 directColor;
 	float directShadow;
 	vec3 indirectColor;
@@ -59,6 +60,9 @@ vec3 randomHemispherePoint(vec3 rand, vec3 n) {
   return v * sign(dot(v, n));
 }
 
+vec3 lightMin = vec3(-0.24,1.98,-0.22);
+vec3 offset = vec3(0.47f,0.0f,0.38f);
+
 hitAttributeEXT vec3 attribs;
 
 void main() {
@@ -73,15 +77,15 @@ void main() {
 	vec3 lightColor = vec3(emissionBuffer.data[3 * gl_PrimitiveID + 0], emissionBuffer.data[3 * gl_PrimitiveID + 1], emissionBuffer.data[3 * gl_PrimitiveID + 2]);
 	vec3 surfaceColor = vec3(colorBuffer.data[3 * gl_PrimitiveID + 0], colorBuffer.data[3 * gl_PrimitiveID + 1], colorBuffer.data[3 * gl_PrimitiveID + 2]);
 	vec3 dir = position - payload.prevPos;
-	payload.directColor = surfaceColor;
-	return;
+	//payload.directColor = surfaceColor;
+	//return;
 	float dist = min(1.0f / length(dir), 2.f);
 	float diff = dist*dist*max(dot(normalize(dir), payload.prevNormal), 0.0f);
 	if (payload.directPass) {
-		payload.directColor += (1.0f/NUM_SAMPLES)*diff*lightColor*surfaceColor;
+		payload.directColor += (1.0f/NUM_SAMPLES)*diff*lightColor*payload.prevColor;
 	}
 	if (payload.indirectPass) {
-		payload.indirectColor = (1.0f/NUM_SAMPLES)*diff*lightColor*surfaceColor;
+		payload.indirectColor = (1.0f/NUM_SAMPLES)*diff*lightColor*payload.prevColor;
 		return;
 	}
 
@@ -95,11 +99,12 @@ void main() {
 	}
 	for (int i = 0; i < NUM_SAMPLES; i++) {
 		payload.indirectColor = vec3(0.0f);
-		vec3 noise = vec3(rand(vec2(i,position.x)), rand(vec2(i,position.y)), rand(vec2(i,position.z)));
-		vec3 randomDir = randomHemispherePoint(noise, normal);
+		vec3 randomPos = vec3(rand(position.x), 0, rand(position.y))*offset + lightMin;
+
 		payload.prevPos = position;
 		payload.prevNormal = normal;
-		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, position, tmin, randomDir, tmax, 0);
+		payload.prevColor = surfaceColor;
+		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, position, tmin, normalize(randomPos-position), tmax, 0);
 		dir = payload.prevPos - position;
 		float dist = min(1.0f / length(dir), 2.f);
 		diff = dist*dist*max(dot(normalize(dir), normal), 0.0f);
