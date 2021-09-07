@@ -5,9 +5,9 @@
 
 #define PI 3.14159265359
 #define ONE_OVER_PI 0.3183099f
-#define NUM_SAMPLES 16
+#define NUM_SAMPLES 32
 
-const float sampleRatio = 0.8f; //allocate most samples to the light and rest to around normal
+const float sampleRatio = 0.5f; //allocate most samples to the light and rest to around normal
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform SceneProperties 
@@ -142,6 +142,6 @@ void main() {
 		dir = payload.prevPos - position;
 		float dist = min(1.0f / length(dir), 2.f);
 		diff = dist*dist*max(dot(normalize(dir), normal), 0.0f);
-		if (payload.indirectPass) payload.directColor += (1.0f/NUM_SAMPLES)*diff*payload.indirectColor*surfaceColor;
+		if (payload.indirectPass) payload.directColor += diff*payload.indirectColor*surfaceColor;
 	}
 }
