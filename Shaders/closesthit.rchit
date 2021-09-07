@@ -7,6 +7,8 @@
 #define ONE_OVER_PI 0.3183099f
 #define NUM_SAMPLES 16
 
+const float sampleRatio = 0.8f; //allocate most samples to the light and rest to around normal
+
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 2, set = 0) uniform SceneProperties 
 {
@@ -60,6 +62,29 @@ vec3 randomHemispherePoint(vec3 rand, vec3 n) {
   return v * sign(dot(v, n));
 }
 
+vec3 randomCosineWeightedHemispherePoint(vec3 rand, vec3 n) {
+  float r = rand.x * 0.5 + 0.5; // [-1..1) -> [0..1)
+  float angle = (rand.y + 1.0) * PI; // [-1..1] -> [0..2*PI)
+  float sr = sqrt(r);
+  vec2 p = vec2(sr * cos(angle), sr * sin(angle));
+  /*
+   * Unproject disk point up onto hemisphere:
+   * 1.0 == sqrt(x*x + y*y + z*z) -> z = sqrt(1.0 - x*x - y*y)
+   */
+  vec3 ph = vec3(p.xy, sqrt(1.0 - p*p));
+  /*
+   * Compute some arbitrary tangent space for orienting
+   * our hemisphere 'ph' around the normal. We use the camera's up vector
+   * to have some fix reference vector over the whole screen.
+   */
+  vec3 tangent = normalize(rand);
+  vec3 bitangent = cross(tangent, n);
+  tangent = cross(bitangent, n);
+  
+  /* Make our hemisphere orient around the normal. */
+  return tangent * ph.x + bitangent * ph.y + n * ph.z;
+}
+
 vec3 lightMin = vec3(-0.24,1.98,-0.22);
 vec3 offset = vec3(0.47f,0.0f,0.38f);
 
@@ -79,6 +104,7 @@ void main() {
 	vec3 dir = position - payload.prevPos;
 	//payload.directColor = surfaceColor;
 	//return;
+	if (!payload.directPass && !payload.indirectPass) payload.directColor += lightColor;
 	float dist = min(1.0f / length(dir), 2.f);
 	float diff = dist*dist*max(dot(normalize(dir), payload.prevNormal), 0.0f);
 	if (payload.directPass) {
@@ -97,14 +123,22 @@ void main() {
 		payload.indirectPass = true;
 		payload.directPass = false;	
 	}
+	int sampleThreshold = NUM_SAMPLES;
+	if (payload.directPass) sampleThreshold = int(sampleRatio*NUM_SAMPLES);
 	for (int i = 0; i < NUM_SAMPLES; i++) {
 		payload.indirectColor = vec3(0.0f);
-		vec3 randomPos = vec3(rand(position.x), 0, rand(position.y))*offset + lightMin;
-
+		vec3 randomDir;
+		if (payload.directPass && i > sampleThreshold) {
+			randomDir = randomCosineWeightedHemispherePoint(vec3(rand(vec2(position.x, i)), rand(vec2(position.y, i)), rand(vec2(position.z, i))), normal);
+		} else {
+			vec3 randomPos = vec3(rand(vec2(position.x, i)), 0, rand(vec2(position.x, i)))*offset + lightMin;
+			randomDir = normalize(randomPos-position);
+		}
+		randomDir = faceforward(randomDir, normal, -randomDir);
 		payload.prevPos = position;
 		payload.prevNormal = normal;
 		payload.prevColor = surfaceColor;
-		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, position, tmin, normalize(randomPos-position), tmax, 0);
+		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, position, tmin, randomDir, tmax, 0);
 		dir = payload.prevPos - position;
 		float dist = min(1.0f / length(dir), 2.f);
 		diff = dist*dist*max(dot(normalize(dir), normal), 0.0f);
